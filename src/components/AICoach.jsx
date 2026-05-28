@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { groupByCategory, groupByMonth, generateInsights } from '../utils/insights';
 
-export default function AICoach({ transactions }) {
+export default function AICoach({ transactions, salary }) {
   const [advice, setAdvice] = useState(null);
   const [loading, setLoading] = useState(false);
   const [question, setQuestion] = useState('');
@@ -14,10 +14,14 @@ export default function AICoach({ transactions }) {
     const byMonth = groupByMonth(transactions);
     const total = transactions.reduce((s, t) => s + t.amount, 0);
     const insights = generateInsights(transactions);
+    const savingsRate = Math.round(((salary - total) / salary) * 100);
     return `
-User's financial data summary:
+User's financial profile:
+- Monthly Salary/Income: ₹${Math.round(salary).toLocaleString()}
 - Total spending: ₹${Math.round(total).toLocaleString()}
-- Spending by category: ${byCategory.map(c => `${c.name}: ₹${c.value.toLocaleString()}`).join(', ')}
+- Current Savings Rate: ${savingsRate}%
+- Spending by category and ratio to salary:
+  ${byCategory.map(c => `- ${c.name}: ₹${Math.round(c.value).toLocaleString()} (${Math.round((c.value / salary) * 100)}% of income)`).join('\n  ')}
 - Monthly totals: ${byMonth.map(m => `${m.label}: ₹${Math.round(m.total).toLocaleString()}`).join(', ')}
 - Key alerts: ${insights.map(i => i.message).join('; ') || 'None'}
 `;
@@ -25,7 +29,7 @@ User's financial data summary:
 
   const askGemini = async (prompt, key) => {
     const context = buildContext();
-    const fullPrompt = `You are a friendly Indian personal finance coach. Given a user's spending data, give concise, actionable, warm advice. Use ₹ symbol. Keep responses under 200 words. Use bullet points. Be specific with numbers. Mention savings amounts where possible.
+    const fullPrompt = `You are a friendly Indian personal finance coach. Given a user's spending data and salary, give concise, actionable, warm advice. Use ₹ symbol. Keep responses under 250 words. Use bullet points. Be specific with numbers. Highlight savings rate and category spend-to-income percentages, comparing them to healthy limits (e.g. wants < 30%, subscriptions < 2%). Suggest concrete monthly savings amounts and what they would compound to in a 10-year mutual fund SIP (assume 12% average annual return).
 Context:
 ${context}
 
@@ -74,7 +78,7 @@ User Question: ${prompt}`;
       body: JSON.stringify({
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: 1000,
-        system: `You are a friendly Indian personal finance coach. Given a user's spending data, give concise, actionable, warm advice. Use ₹ symbol. Keep responses under 200 words. Use bullet points. Be specific with numbers. Mention savings amounts where possible. Context:\n${context}`,
+        system: `You are a friendly Indian personal finance coach. Given a user's spending data and salary, give concise, actionable, warm advice. Use ₹ symbol. Keep responses under 250 words. Use bullet points. Be specific with numbers. Highlight savings rate and category spend-to-income percentages, comparing them to healthy limits (e.g. wants < 30%, subscriptions < 2%). Suggest concrete monthly savings amounts and what they would compound to in a 10-year mutual fund SIP (assume 12% average annual return). Context:\n${context}`,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -147,59 +151,77 @@ User Question: ${prompt}`;
 
     // 1. Save more money
     if (cleanPrompt.includes('save') || cleanPrompt.includes('budget') || cleanPrompt.includes('saving')) {
+      const savingsRate = Math.round(((salary - total) / salary) * 100);
       let adviceLines = [
-        `Based on your total spending of **₹${Math.round(total).toLocaleString()}**, here is where you can optimize:`,
-        `• **Target ${topCat.name}**: You spent **₹${Math.round(topCat.value).toLocaleString()}** here. Trimming this by 15% would save you **₹${Math.round(topCat.value * 0.15).toLocaleString()}** this month.`,
+        `With a monthly income of **₹${Math.round(salary).toLocaleString()}** and spending **₹${Math.round(total).toLocaleString()}**, your current Savings Rate is **${savingsRate}%**.`,
       ];
+      if (savingsRate < 0) {
+        adviceLines.push(`⚠️ **Alert**: You are currently in a deficit (spending more than your income). You need to trim expenses immediately to stop the outflow.`);
+      } else if (savingsRate < 15) {
+        adviceLines.push(`⚠️ **Alert**: Your savings rate is **${savingsRate}%**, which is below the recommended healthy minimum of 15-20%. Let's bump it up.`);
+      } else {
+        adviceLines.push(`🎉 **Excellent**: You have a healthy savings rate of **${savingsRate}%**! Let's optimize it further.`);
+      }
+
+      const topCatRatio = Math.round((topCat.value / salary) * 100);
+      adviceLines.push(`• **Optimize ${topCat.name}**: This category consumes **₹${Math.round(topCat.value).toLocaleString()}** (**${topCatRatio}%** of your total income). Trimming this by 15% would free up **₹${Math.round(topCat.value * 0.15).toLocaleString()}** monthly.`);
+
       if (subSpend > 0) {
-        adviceLines.push(`• **Cancel Subscriptions**: We detected **₹${subSpend.toLocaleString()}** spent on subscriptions. Review and cancel any you haven't used in 30 days to save up to **₹${Math.round(subSpend * 0.3).toLocaleString()}**.`);
+        const subRatio = (subSpend / salary) * 100;
+        adviceLines.push(`• **Subscription Ratio**: Subscriptions take up **${subRatio.toFixed(1)}%** of your income (recommended limit: under 2%). Canceling unused plans could save **₹${Math.round(subSpend * 0.3).toLocaleString()}**.`);
       }
       if (foodSpend > 3000) {
-        adviceLines.push(`• **Limit Dining Out**: With **₹${foodSpend.toLocaleString()}** spent on food delivery/dining, reducing orders by 2 per week can save **₹${Math.round(foodSpend * 0.25).toLocaleString()}**.`);
+        const foodRatio = Math.round((foodSpend / salary) * 100);
+        adviceLines.push(`• **Dining Out Ratio**: Food delivery is eating **${foodRatio}%** of your monthly income. Cooking at home more can save **₹${Math.round(foodSpend * 0.25).toLocaleString()}**.`);
       }
-      if (shoppingSpend > 5000) {
-        adviceLines.push(`• **Impulse Control**: Shopping stands at **₹${shoppingSpend.toLocaleString()}**. Apply a 48-hour cooling-off rule before clicking 'Buy' to save an estimated **₹${Math.round(shoppingSpend * 0.2).toLocaleString()}**.`);
-      }
-      adviceLines.push("• **Rule of Thumb**: Put 10% of your average expenses straight into a savings vault on salary day!");
+      
+      const potentialMonthlySavings = Math.round((topCat.value * 0.15) + (subSpend * 0.3) + (foodSpend * 0.25));
+      const sipFutureValue = Math.round(potentialMonthlySavings * 232.3);
+      adviceLines.push(`• **Wealth Compounder**: Redirecting these total savings of **₹${potentialMonthlySavings.toLocaleString()}/month** into a mutual fund SIP (compounding at 12% annually) will grow to approximately **₹${sipFutureValue.toLocaleString()}** in 10 years!`);
+      
       return adviceLines.join('\n');
     }
 
-    // 2. Biggest wasteful expense
+    // 2. Wasteful expense
     if (cleanPrompt.includes('waste') || cleanPrompt.includes('wasteful') || cleanPrompt.includes('biggest') || cleanPrompt.includes('expense') || cleanPrompt.includes('highest') || cleanPrompt.includes('expensive')) {
+      const topDisRatio = Math.round((topDis.value / salary) * 100);
       let adviceLines = [
-        `Let's analyze your largest areas of discretionary spending:`,
-        `• **Discretionary Peak**: Your highest want-based category is **${topDis.name}**, totaling **₹${Math.round(topDis.value).toLocaleString()}** across **${topDis.count}** payments.`
+        `Let's analyze your largest areas of discretionary spending relative to your income of **₹${Math.round(salary).toLocaleString()}**:`,
+        `• **Discretionary Peak**: Your highest want-based category is **${topDis.name}**, consuming **₹${Math.round(topDis.value).toLocaleString()}** (**${topDisRatio}%** of your income) across **${topDis.count}** payments.`
       ];
       if (largestTx) {
-        adviceLines.push(`• **Single Largest Outflow**: You spent **₹${Math.round(largestTx.amount).toLocaleString()}** on **${largestTx.description}** (${formatTxDate(largestTx.date)}). Inspect if this was a necessary purchase.`);
+        const txRatio = (largestTx.amount / salary) * 100;
+        adviceLines.push(`• **Single Largest Outflow**: You spent **₹${Math.round(largestTx.amount).toLocaleString()}** (**${txRatio.toFixed(1)}%** of income) on **${largestTx.description}** (${formatTxDate(largestTx.date)}).`);
       }
-      if (topDis.count > 3) {
-        const avg = Math.round(topDis.value / topDis.count);
-        adviceLines.push(`• **Frequency Alert**: Small charges add up. You ordered/paid **${topDis.count}** times in **${topDis.name}** with an average of **₹${avg}**. Try limiting yourself to 2 orders a week.`);
+      if (topDisRatio > 10) {
+        adviceLines.push(`• **Ratio Warning**: Spending **${topDisRatio}%** of income on **${topDis.name}** is high. Try to cap wants to under 10% of income per category.`);
       }
       if (subSpend > 1000) {
-        adviceLines.push(`• **Subscription Leak**: You have **₹${subSpend.toLocaleString()}** going to subscriptions. These are recurring—ensure you are getting value from each one.`);
+        const subRatio = (subSpend / salary) * 100;
+        adviceLines.push(`• **Subscription Leak**: Subscriptions swallow **₹${subSpend.toLocaleString()}** (**${subRatio.toFixed(1)}%** of income). Review if they are all active wants.`);
       }
       return adviceLines.join('\n');
     }
 
     // 3. 3-month savings plan
     if (cleanPrompt.includes('plan') || cleanPrompt.includes('roadmap') || cleanPrompt.includes('3-month') || cleanPrompt.includes('future') || cleanPrompt.includes('months')) {
-      const monthlyTarget = Math.round(total * 0.12);
+      const monthlyTarget = Math.round(salary * 0.15); // target 15% savings
       const threeMonthTarget = Math.round(monthlyTarget * 3);
       const m1Save = Math.round(topCat.value * 0.15);
       const m2Save = Math.round((subSpend * 0.3) + (billSpend * 0.05));
-      const m3Save = Math.round(total * 0.1);
+      const m3Save = Math.round(salary * 0.1); // save 10% of income
+
+      const sip10yr = Math.round(monthlyTarget * 232.3);
 
       return [
-        `Here is a tailored 3-Month Savings Roadmap targeting **₹${threeMonthTarget.toLocaleString()}** in total savings:`,
+        `Here is your personalized 3-Month Savings Roadmap targeting **₹${threeMonthTarget.toLocaleString()}** (15% savings rate):`,
         `• **Month 1: Cut Discretionary Spend (Target: ₹${m1Save.toLocaleString()})**`,
-        `  Focus exclusively on trimming **${topCat.name}** (currently **₹${Math.round(topCat.value).toLocaleString()}**) by 15% through smart substitutions.`,
+        `  Focus exclusively on trimming **${topCat.name}** (currently **${Math.round((topCat.value / salary) * 100)}%** of your income) by 15% through smart substitutions.`,
         `• **Month 2: Subscription & Bill Cleanup (Target: ₹${Math.max(500, m2Save).toLocaleString()})**`,
-        `  Review all utility bills and subscriptions. Cancel 1 unused subscription and shut down background services.`,
+        `  Reduce recurring leaks. Cancel 1 unused subscription and optimize bills to save **₹${Math.max(500, m2Save).toLocaleString()}**.`,
         `• **Month 3: Automate Savings (Target: ₹${m3Save.toLocaleString()})**`,
-        `  Set up a recurring bank auto-transfer of **₹${m3Save.toLocaleString()}** to your savings account on the 1st of the month.`,
-        `• **Total Expected Savings**: By Month 3, you will have saved **₹${(m1Save + Math.max(500, m2Save) + m3Save).toLocaleString()}**!`,
+        `  Set up a recurring bank auto-transfer of **₹${m3Save.toLocaleString()}** (10% of income) to your savings account on the 1st of the month.`,
+        `• **Wealth Compounder**: Committing to this **₹${monthlyTarget.toLocaleString()}/month** plan yields **₹${sip10yr.toLocaleString()}** in 10 years at 12% interest!`,
       ].join('\n');
     }
 
@@ -207,68 +229,82 @@ User Question: ${prompt}`;
     if (cleanPrompt.includes('compare') || cleanPrompt.includes('healthy') || cleanPrompt.includes('habits') || cleanPrompt.includes('rule') || cleanPrompt.includes('50/30/20')) {
       const needs = billSpend + grocerySpend;
       const wants = foodSpend + travelSpend + shoppingSpend + subSpend;
-      const needsPct = Math.round((needs / total) * 100) || 0;
-      const wantsPct = Math.round((wants / total) * 100) || 0;
+      const needsPct = Math.round((needs / salary) * 100) || 0;
+      const wantsPct = Math.round((wants / salary) * 100) || 0;
       const remainingPct = Math.max(0, 100 - needsPct - wantsPct);
 
       let needsFeedback = needsPct > 50 
-        ? `This is higher than the recommended 50%. Check if you can optimize utilities or buy groceries in bulk.`
-        : `Excellent! You're keeping your essential costs well under the 50% threshold.`;
+        ? `This is higher than the recommended 50% limit. Consider options to cook in bulk or optimize utility bills.`
+        : `Excellent! Your essentials are well under the 50% threshold at **${needsPct}%** of income.`;
       
       let wantsFeedback = wantsPct > 30
-        ? `You are exceeding the 30% wants limit. Focus on dining out and online shopping to cool this down.`
-        : `Great job! Your fun spending is well-controlled at ${wantsPct}%.`;
+        ? `You are exceeding the 30% wants limit (current: **${wantsPct}%**). Try postponing shopping purchases by 48 hours.`
+        : `Great job! Your discretionary spending is well-controlled at **${wantsPct}%** of income.`;
+
+      const automatedSIP = Math.round(salary * 0.2);
+      const sip10yr = Math.round(automatedSIP * 232.3);
 
       return [
-        `Here is how your spending maps to the **50/30/20 Financial Rule** (Needs / Wants / Savings):`,
-        `• **Needs (Essentials)**: **₹${needs.toLocaleString()}** (${needsPct}% of total vs 50% target). ${needsFeedback}`,
-        `• **Wants (Discretionary)**: **₹${wants.toLocaleString()}** (${wantsPct}% of total vs 30% target). ${wantsFeedback}`,
-        `• **Savings Potential**: **${remainingPct}%** of your funds remain for savings or debt payoff.`,
-        `• **Recommendation**: To hit a solid 20% savings rate, automate **₹${Math.round(total * 0.2).toLocaleString()}** to savings at the start of each month.`,
+        `Here is how your monthly spending of **₹${Math.round(total).toLocaleString()}** maps to the **50/30/20 Rule** based on your **₹${Math.round(salary).toLocaleString()}** income:`,
+        `• **Needs (Essentials)**: **₹${needs.toLocaleString()}** (**${needsPct}%** vs 50% target). ${needsFeedback}`,
+        `• **Wants (Discretionary)**: **₹${wants.toLocaleString()}** (**${wantsPct}%** vs 30% target). ${wantsFeedback}`,
+        `• **Savings (Remaining)**: **${remainingPct}%** of your income remains. A healthy target is 20%.`,
+        `• **SIP Goal**: Automating 20% (**₹${automatedSIP.toLocaleString()}/month**) will grow to **₹${sip10yr.toLocaleString()}** in 10 years at 12% returns.`,
       ].join('\n');
     }
 
     // 5. Custom keyword matches
     if (cleanPrompt.includes('food') || cleanPrompt.includes('zomato') || cleanPrompt.includes('swiggy') || cleanPrompt.includes('eat') || cleanPrompt.includes('restaurant')) {
+      const foodRatio = Math.round((foodSpend / salary) * 100);
+      const targetSavings = Math.round(foodSpend * 0.35);
+      const sipVal = Math.round(targetSavings * 232.3);
       return [
         `🍔 **Food Spending Analysis:**`,
-        `• You spent **₹${foodSpend.toLocaleString()}** across **${foodCount}** transactions.`,
+        `• You spent **₹${foodSpend.toLocaleString()}** (**${foodRatio}%** of income) across **${foodCount}** transactions.`,
         `• Average per order: **₹${foodCount ? Math.round(foodSpend / foodCount) : 0}**.`,
-        `• **Coach Recommendation**: Try preparing meals at home. Limiting food delivery to twice a week would save you approximately **₹${Math.round(foodSpend * 0.35).toLocaleString()}** a month.`,
+        `• **Coach Recommendation**: Try preparing meals at home. Saving 35% on food delivery (**₹${targetSavings.toLocaleString()}/month**) and putting it in a SIP yields **₹${sipVal.toLocaleString()}** in 10 years!`,
       ].join('\n');
     }
 
     if (cleanPrompt.includes('travel') || cleanPrompt.includes('uber') || cleanPrompt.includes('ola') || cleanPrompt.includes('cab') || cleanPrompt.includes('ride')) {
+      const travelRatio = Math.round((travelSpend / salary) * 100);
       return [
         `🚗 **Travel & Ride-Hailing Analysis:**`,
-        `• You spent **₹${travelSpend.toLocaleString()}** across **${travelCount}** transport transactions.`,
+        `• You spent **₹${travelSpend.toLocaleString()}** (**${travelRatio}%** of income) across **${travelCount}** transport transactions.`,
         `• **Coach Recommendation**: Ola/Uber rides add up quickly. Try public transit for routine commutes, or compare rates between services before booking.`,
       ].join('\n');
     }
 
     if (cleanPrompt.includes('shop') || cleanPrompt.includes('shopping') || cleanPrompt.includes('amazon') || cleanPrompt.includes('flipkart') || cleanPrompt.includes('myntra')) {
+      const shopRatio = Math.round((shoppingSpend / salary) * 100);
+      const targetSavings = Math.round(shoppingSpend * 0.25);
+      const sipVal = Math.round(targetSavings * 232.3);
       return [
         `🛍️ **Shopping & E-Commerce Analysis:**`,
-        `• Total spent on online shopping: **₹${shoppingSpend.toLocaleString()}** across **${shoppingCount}** transactions.`,
-        `• **Coach Recommendation**: Try the **30-day list rule**—wait 30 days before buying non-essential items to cut impulse buys.`,
+        `• Total spent on online shopping: **₹${shoppingSpend.toLocaleString()}** (**${shopRatio}%** of income) across **${shoppingCount}** transactions.`,
+        `• **Coach Recommendation**: Try the **30-day list rule**—wait 30 days before buying non-essential items. Saving 25% (**₹${targetSavings.toLocaleString()}/month**) yields **₹${sipVal.toLocaleString()}** in 10 years!`,
       ].join('\n');
     }
 
     if (cleanPrompt.includes('subscription') || cleanPrompt.includes('netflix') || cleanPrompt.includes('spotify') || cleanPrompt.includes('prime')) {
+      const subRatio = (subSpend / salary) * 100;
       return [
         `📱 **Subscriptions Analysis:**`,
-        `• You spent **₹${subSpend.toLocaleString()}** on recurring subscriptions.`,
-        `• **Coach Recommendation**: Audit all active subscriptions. Cancel any service you haven't used in the last 3 weeks.`,
+        `• You spent **₹${subSpend.toLocaleString()}** (**${subRatio.toFixed(1)}%** of income) on recurring subscriptions.`,
+        `• **Coach Recommendation**: Audit all active subscriptions. Cancel any service you haven't used in the last 3 weeks to bring the ratio under the 2% limit.`,
       ].join('\n');
     }
 
     // 6. Generic Fallback
+    const savingsRate = Math.round(((salary - total) / salary) * 100);
+    const topCatRatio = Math.round((topCat.value / salary) * 100);
+    const secondCatRatio = Math.round((secondCat.value / salary) * 100);
     return [
       `👋 Hello! I'm your local AI Personal Finance Coach.`,
-      `I have analyzed your **${count}** transactions totaling **₹${Math.round(total).toLocaleString()}**:`,
-      `• **Top Category**: **${topCat.name}** (₹${Math.round(topCat.value).toLocaleString()}) makes up **${Math.round((topCat.value / total) * 100)}%** of your spending.`,
-      `• **Second Category**: **${secondCat.name}** (₹${Math.round(secondCat.value).toLocaleString()}) makes up **${Math.round((secondCat.value / total) * 100)}%** of your spending.`,
-      `• **Coach Tip**: Focus your attention on cutting down **${topCat.name}** expenses to see the biggest impact on your savings.`,
+      `Here is a summary of your **${count}** transactions totalling **₹${Math.round(total).toLocaleString()}** based on your monthly income of **₹${Math.round(salary).toLocaleString()}** (Savings Rate: **${savingsRate}%**):`,
+      `• **Top Category**: **${topCat.name}** makes up **${topCatRatio}%** of your total income (₹${Math.round(topCat.value).toLocaleString()}).`,
+      `• **Second Category**: **${secondCat.name}** makes up **${secondCatRatio}%** of your total income (₹${Math.round(secondCat.value).toLocaleString()}).`,
+      `• **Coach Tip**: Focus your attention on cutting down **${topCat.name}** expenses to see the biggest impact on your savings rate.`,
       `\n*Tip: Connect your own Gemini API Key in the settings gear (top right of this card) to ask me free-form questions!*`,
     ].join('\n');
   };
@@ -488,8 +524,7 @@ User Question: ${prompt}`;
                 return (
                   <p 
                     key={i} 
-                    className={isBullet ? 'coach-bullet' : ''} 
-                    style={isBullet ? { paddingLeft: '1rem', textIndent: '-0.8rem', margin: '6px 0', color: 'var(--text2)' } : { margin: '8px 0', color: 'var(--text2)' }}
+                    className={isBullet ? 'coach-bullet' : ''}
                   >
                     {isBullet ? '• ' : ''}{formatLine(cleanLine)}
                   </p>

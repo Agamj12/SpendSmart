@@ -52,7 +52,7 @@ export default function SpendingCharts({ transactions }) {
             <XAxis dataKey="label" tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 11 }} tickFormatter={v => `₹${(v/1000).toFixed(0)}k`} />
             <Tooltip content={<CustomTooltip />} />
-            {Object.keys(CATEGORIES).filter(c => c !== 'Other').map((cat) => (
+            {Object.keys(CATEGORIES).filter(c => c !== 'Other' && c !== 'Income').map((cat) => (
               <Bar key={cat} dataKey={`breakdown.${cat}`} name={cat} stackId="a" fill={CATEGORIES[cat].color} />
             ))}
           </BarChart>

@@ -5,6 +5,7 @@ export const CATEGORIES = {
   Groceries: { color: '#1D9E75', icon: '🛒', keywords: ['big bazaar', 'dmart', 'reliance fresh', 'grocery', 'groceries', 'supermarket', 'kirana', 'vegetables'] },
   Shopping: { color: '#EF9F27', icon: '🛍️', keywords: ['amazon', 'flipkart', 'myntra', 'ajio', 'meesho', 'shopping', 'purchase', 'order'] },
   Bills: { color: '#5F5E5A', icon: '⚡', keywords: ['electricity', 'water', 'gas', 'internet', 'broadband', 'jio', 'airtel', 'vi', 'bill', 'recharge'] },
+  Income: { color: '#26c28f', icon: '💼', keywords: ['salary', 'income', 'credit', 'dividend', 'refund'] },
   Other: { color: '#D4537E', icon: '💰', keywords: [] },
 };
 

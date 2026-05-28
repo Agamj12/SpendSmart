@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { groupByCategory } from '../utils/insights';
 
-export default function SavingsSimulator({ transactions }) {
+export default function SavingsSimulator({ transactions, salary }) {
   const byCategory = groupByCategory(transactions);
   const [reductions, setReductions] = useState({});
 
@@ -9,6 +9,11 @@ export default function SavingsSimulator({ transactions }) {
     const pct = reductions[cat.name] || 0;
     return sum + Math.round(cat.value * (pct / 100));
   }, 0);
+
+  const totalSpend = byCategory.reduce((sum, cat) => sum + cat.value, 0);
+  const originalSavingsRate = salary > 0 ? Math.round(((salary - totalSpend) / salary) * 100) : 0;
+  const simulatedSpend = totalSpend - totalSavings;
+  const simulatedSavingsRate = salary > 0 ? Math.round(((salary - simulatedSpend) / salary) * 100) : 0;
 
   return (
     <div className="simulator-section">
@@ -42,9 +47,19 @@ export default function SavingsSimulator({ transactions }) {
           <span>Projected Monthly Savings</span>
           <span className="sim-total-val">₹{totalSavings.toLocaleString()}</span>
         </div>
+        {salary > 0 && (
+          <div className="sim-total" style={{ borderTop: 'none', paddingTop: 0, marginTop: '8px' }}>
+            <span>Simulated Savings Rate</span>
+            <span className={`savings-badge ${simulatedSavingsRate >= 15 ? 'savings-good' : simulatedSavingsRate >= 0 ? 'savings-warn' : 'savings-danger'}`}>
+              {simulatedSavingsRate}%
+            </span>
+          </div>
+        )}
         {totalSavings > 0 && (
           <div className="sim-yearly">
-            📅 That's <strong>₹{(totalSavings * 12).toLocaleString()}/year</strong> — enough to invest in a mutual fund SIP!
+            📈 Simulating this will boost your Savings Rate from <strong>{originalSavingsRate}%</strong> to <strong>{simulatedSavingsRate}%</strong>!
+            <br /><br />
+            📅 That's <strong>₹{(totalSavings * 12).toLocaleString()}/year</strong> in extra savings — enough to invest in a mutual fund SIP!
           </div>
         )}
       </div>

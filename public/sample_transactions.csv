@@ -1,4 +1,5 @@
 date,description,amount
+2024-03-01,Monthly Salary Credit,75000
 2024-03-01,Zomato Order,450
 2024-03-02,Uber Ride,180
 2024-03-03,Netflix Subscription,649
@@ -30,6 +31,7 @@ date,description,amount
 2024-03-29,Ola Ride,260
 2024-03-30,Blinkit Groceries,840
 2024-03-31,Spotify Subscription,119
+2024-04-01,Monthly Salary Credit,75000
 2024-04-01,Zomato Order,490
 2024-04-02,Uber Ride,220
 2024-04-03,Netflix Subscription,649
@@ -60,6 +62,7 @@ date,description,amount
 2024-04-28,Ola Ride,250
 2024-04-29,Blinkit Groceries,920
 2024-04-30,Spotify Subscription,119
+2024-05-01,Monthly Salary Credit,75000
 2024-05-01,Zomato Order,540
 2024-05-02,Uber Ride,200
 2024-05-03,Netflix Subscription,649
@@ -90,6 +93,7 @@ date,description,amount
 2024-05-28,Ola Ride,270
 2024-05-29,Blinkit Groceries,970
 2024-05-30,Spotify Subscription,119
+2024-06-01,Monthly Salary Credit,75000
 2024-06-01,Zomato Order,520
 2024-06-02,Uber Ride,240
 2024-06-03,Netflix Subscription,649
@@ -120,6 +124,7 @@ date,description,amount
 2024-06-28,Ola Ride,260
 2024-06-29,Blinkit Groceries,1010
 2024-06-30,Spotify Subscription,119
+2024-07-01,Monthly Salary Credit,75000
 2024-07-01,Zomato Order,580
 2024-07-02,Uber Ride,250
 2024-07-03,Netflix Subscription,649
