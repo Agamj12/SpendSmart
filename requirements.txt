@@ -1,0 +1,17 @@
+# SpendSmart Project Requirements
+# This is a React + Vite frontend application.
+# Node.js and npm are required to run this project.
+
+# System Requirements:
+Node.js >= 18.0.0
+npm >= 9.0.0
+
+# Project Dependencies:
+react >= 18.3.1
+react-dom >= 18.3.1
+recharts >= 2.12.7
+papaparse >= 5.4.1
+
+# Development Tools:
+vite >= 5.4.1
+@vitejs/plugin-react >= 4.3.1
